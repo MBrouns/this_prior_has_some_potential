@@ -33,6 +33,8 @@ So what we'd like to do in this blogpost is explore the idea of constraints a bi
 by showcasing how our open source package deals with it but then showing how a probibalistic 
 approach might be able to use bayes rule to go an extra mile. 
 
+<aside>This document will contain the summaries, you can find the bigger project [here](https://github.com/MBrouns/this_prior_has_some_potential).</aside>
+
 ## Dataset and Fairness 
 
 The dataset we'll be using can be found in [scikit-lego](https://scikit-lego.readthedocs.io/en/latest/index.html). 
@@ -41,12 +43,41 @@ are arrested. It has attributes for skin color, gender, age, employment, citizen
 We consider date, employment and citizenship to be proxies that go into the model while we keep gender,
 skin color and age seperate as sensitive attributes that we want to remain fair on. 
 
+The dataset is interesting because not only is there a fairness risk; there is also a balancing issue. 
+The balancing issue can be dealt with by adding a `class_weight` parameter while the fairness 
+can be dealt with in many ways ([exibit A](https://www.youtube.com/watch?v=cIGX-34GwJM), 
+[exibit B](https://www.youtube.com/watch?v=Z8MEFI7ZJlA)). A favorable method (we think so) is to apply 
+a hard constraint. Our [implementation](https://scikit-lego.readthedocs.io/en/latest/fairness.html#Equal-opportunity) 
+of `EqualOpportunityClassifier` does this running a logistic regression constrained by the 
+distance to the decision boundary in two groups.
 
-colour
-sex
-age
-released
-employed
-citizen
-checks
-year
+```python
+from sklearn.linear_model import LogisticRegression
+from sklego.linear_model import EqualOpportunityClassifier
+
+unfair_model = LogisticRegression(class_weight='balanced')
+fair_model = EqualOpportunityClassifier(
+    covariance_threshold=0.9, # strictness of threshold
+    positive_target='Yes',    # name of the preferable label
+    sensitive_cols=[0, 1, 2]  # columns in X that are considered sensitive
+)
+
+unfair_model.fit(X, y)
+fair_model.fit(X, y)
+```
+
+The table below shows the cross-validated summary of the performance of both models.
+
+There are a few things to note at this stage; 
+
+- Accuracy and fairness don't go hand in hand. 
+- The fair model is arguable still useful despite having a lower accuracy. 
+- Having a fairness constraint based on distance to the decision boundary is one 
+description of fairness. But, there may very well be others. In general though 
+it is hard to guarantee a constraint unless the resulting optimisation problem is convex. 
+- The current modelling approach allows us to make predictions but these predictions 
+do not have uncertainty bounds. 
+- Linear models are fine, but sometimes we may want to apply constraints to 
+hierarchical models. 
+
+## Probibalistic Programming
