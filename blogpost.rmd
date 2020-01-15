@@ -1,0 +1,52 @@
+---
+title: Priors with Great Potential
+description: |
+  Geez. Another way of interpreting Bayes Rule.
+author:
+  - name: Matthijs Brouns
+  - name: Vincent Warmerdam
+    url: koaning.io
+date: 01-06-2020
+output:
+  distill::distill_article:
+    self_contained: false
+preview: examples.png
+---
+
+The goal of this document is to summarise a lesson we've had in the last year. 
+We've done a lot of work on algorithmic bias (and [open-sourced it](https://scikit-lego.readthedocs.io/en/latest/index.html)) and
+the main lessons we learned is that constraints are an amazing idea that deserve 
+to be used more often in machine learning. This point drove us write the following 
+formula on a whiteboard;
+
+$$ \text{model} = \text{data} \times \text{constraints} $$
+
+After writing it down, we noticed that we've seen this before but in a different notation.
+
+$$ p(\theta | D) = \text{D | \theta} p(\theta) $$
+
+It's poetic: maybe ... just maybe ... priors can be interpreted as constraints that we wish 
+to impose on models. It is knowledge that we have about how the model *should* work even if
+the data wants to push us in another direction. 
+
+So what we'd like to do in this blogpost is explore the idea of constraints a bit more. First
+by showcasing how our open source package deals with it but then showing how a probibalistic 
+approach might be able to use bayes rule to go an extra mile. 
+
+## Dataset and Fairness 
+
+The dataset we'll be using can be found in [scikit-lego](https://scikit-lego.readthedocs.io/en/latest/index.html). 
+It contains traffic arrests in Toronto and it is our job to predict if somebody is released after they
+are arrested. It has attributes for skin color, gender, age, employment, citizenship, past interactions and date. 
+We consider date, employment and citizenship to be proxies that go into the model while we keep gender,
+skin color and age seperate as sensitive attributes that we want to remain fair on. 
+
+
+colour
+sex
+age
+released
+employed
+citizen
+checks
+year
