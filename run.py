@@ -7,7 +7,7 @@ def run_it(model, df):
 
     y_hat_proba = predictor(trace, df)
     y_hat = y_hat_proba > 0.5
-#     pm.traceplot(trace);
+    pm.traceplot(trace);
     
     print('accuracy:', accuracy_score(df['released'], y_hat))
     print('precision:', precision_score(df['released'], y_hat))
