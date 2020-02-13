@@ -17,21 +17,6 @@ output:
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
----
-title: Priors with Great Potential
-description: |
-  Geez. Another way of interpreting Bayes Rule.
-author:
-  - name: Matthijs Brouns
-  - name: Vincent Warmerdam
-    url: koaning.io
-date: 01-06-2020
-output:
-  distill::distill_article:
-    self_contained: false
-preview: examples.png
----
-
 The goal of this document is to summarise a lesson we've had in the last year. 
 We've done a lot of work on algorithmic bias (and [open-sourced it](https://scikit-lego.readthedocs.io/en/latest/index.html)) and
 the main lessons we learned is that constraints are an amazing idea that deserve 
