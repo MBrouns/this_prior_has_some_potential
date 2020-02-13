@@ -123,22 +123,30 @@ scheme we drop the sensitive columns while the other approach actively corrects 
 them. The table below shows the cross-validated summary of the mean test performance 
 of both models.
 
-| model | eqo(color)  | eqo(age) | eqo(sex)   | precision  | recall    |
-|:------|:------------|:---------|:-----------|:-----------|:----------|
-| LR    | 0.6986      | 0.7861   | 0.8309     | 0.9187     | 0.6345    |
-| EOC   | 0.9740      | 0.9929   | 0.9892     | 0.8353     | 0.9893    |
+```{r, layout="l-body-outset"}
+library(knitr)
+kable(head(read.csv("stats.csv")))
+```
 
-<aside>
-**eqo** stands for equal opportunity, see [documentation](https://scikit-lego.readthedocs.io/en/latest/fairness.html#Measuring-fairness-for-Classification).
-</aside>
+<details>
+  <summary><b>Details on Equal Opportunity Score.</b></summary>
+  One way of measuring fairness could be to measure equal opportunity, which is abbreviated above as **eqo**. 
+  The idea is that we have a sensity attribute, say race, for which we don't want unfairness with regards to
+  the positive outcome $y = 1$. Then equal opportunity is defined as follows; 
+  
+  $$ \text{equality of opportunity} = \min \left(\frac{P(\hat{y}=1 | z=1, y=1)}{P(\hat{y}=1 | z=0, y=1)}, \frac{P(\hat{y}=1 | z=0, y=1)}{P(\hat{y}=1 | z=1, y=1)}\right) $$
+  Extra details can be found [here](https://scikit-lego.readthedocs.io/en/latest/fairness.html#Measuring-fairness-for-Classification).
+</details>
+
+<br>
 
 You can also confirm the difference between the two models by looking at their 
 coefficients.
 
-| model | intercept    | $w_{\text{employed}}$| $w_{\text{citizen}}$ | $w_{\text{year}}$ | $w_{\text{checks}}$  |
-|:------|:-------------|:----------    |:--------------|:-----------|:--------------|
-| LR    | -1.0655      | +0.7913       | +0.7537       | -0.0101    | -0.5951       |
-| EOC   | +0.5833      | +0.7710       | +0.6826       | -0.0196    | -0.5798       |
+```{r, layout="l-body-outset"}
+library(knitr)
+kable(head(read.csv("coefs.csv")))
+```
 
 There are a few things to note at this stage; 
 
