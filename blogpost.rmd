@@ -17,6 +17,18 @@ output:
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
+<style>
+summary{
+  background-color: #fbfbfb;
+}
+details{
+  background-color: #fbfbfb;
+  padding: 25px;
+  padding-bottom: 10px;
+  padding-top: 10px;
+}
+</style> 
+
 The goal of this document is to summarise a lesson we've had in the last year. 
 We've done a lot of work on algorithmic bias (and [open-sourced it](https://scikit-lego.readthedocs.io/en/latest/index.html)) and
 the main lessons we learned is that constraints are an amazing idea that deserve 
@@ -49,13 +61,10 @@ skin color and age seperate as sensitive attributes that we want to remain fair 
 
 Here's a preview of the dataset.
 
-|    | released   | colour   |   year | age   | sex   | employed   | citizen   |   checks |
-|---:|:-----------|:---------|-------:|:------|:------|:-----------|:----------|---------:|
-|  0 | Yes        | False    |   2002 | True  | False | Yes        | Yes       |        3 |
-|  1 | No         | True     |   1999 | True  | False | Yes        | Yes       |        3 |
-|  2 | Yes        | False    |   2000 | True  | False | Yes        | Yes       |        3 |
-|  3 | No         | True     |   2000 | False | False | Yes        | Yes       |        1 |
-|  4 | Yes        | True     |   1999 | False | True  | Yes        | Yes       |        1 |
+```{r, layout="l-body-outset"}
+library(knitr)
+kable(head(read.csv("demo.csv")))
+```
 
 The dataset is interesting because not only is there a fairness risk; there is also a balancing issue. 
 The balancing issue can be dealt with by adding a `class_weight` parameter while the fairness 
@@ -80,16 +89,18 @@ unfair_model.fit(X, y)
 fair_model.fit(X, y)
 ```
 
-<aside>
+<details>
+  <summary><b>Details on the Methods.</b></summary>
 
-Logstic Regression:
+
+Logstic Regression works by optimising the log likelihood.
 
 $$
 \begin{array}{cl}{\operatorname{minimize}} & -\sum_{i=1}^{N} \log p\left(y_{i} | \mathbf{x}_{i},
         \boldsymbol{\theta}\right) \\\end{array}
 $$
 
-Equal Opportunity:
+But what if we add constraints here? That's what the `EqualOpportunityClassifier` does. 
 
 $$
 \begin{array}{cl}{\operatorname{minimize}} & -\sum_{i=1}^{N} \log p\left(y_{i} | \mathbf{x}_{i},
@@ -99,9 +110,13 @@ $$
         {} & {\frac{1}{POS} \sum_{i=1}^{POS}\left(\mathbf{z}_{i}-\overline{\mathbf{z}}\right)
         d_{\boldsymbol{\theta}}\left(\mathbf{x}_{i}\right) \geq-\mathbf{c}}\end{array}
 $$
-See [documentation](https://scikit-lego.readthedocs.io/en/latest/fairness.html#Equal-opportunity).
 
-</aside>
+It the log loss while constraining the correlation between the specified `sensitive_cols` and the distance to the decision boundary of the classifier for those examples that have a `y_true` of 1.
+
+See [documentation](https://scikit-lego.readthedocs.io/en/latest/fairness.html#Equal-opportunity).
+</details>
+
+## Results 
 
 The main difference between the two approaches is that in the Logistic Regression 
 scheme we drop the sensitive columns while the other approach actively corrects for 

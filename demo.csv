@@ -1,0 +1,6 @@
+released,colour,year,age,sex,employed,citizen,checks
+Yes,False,2002,True,False,Yes,Yes,3
+No,True,1999,True,False,Yes,Yes,3
+Yes,False,2000,True,False,Yes,Yes,3
+No,True,2000,False,False,Yes,Yes,1
+Yes,True,1999,False,True,Yes,Yes,1
