@@ -1,4 +1,23 @@
 ---
+title: "Priors of Great Potential"
+description: |
+  Constraints can be amazing.
+author:
+  - name: Matthijs Brouns
+    url: mbrouns.com
+  - name: Vincent Warmerdam
+    url: koaning.io
+date: 02-13-2020
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+---
 title: Priors with Great Potential
 description: |
   Geez. Another way of interpreting Bayes Rule.
@@ -23,7 +42,7 @@ $$ \text{model} = \text{data} \times \text{constraints} $$
 
 After writing it down, we noticed that we've seen this before but in a different notation.
 
-$$ p(\theta | D) = \text{D | \theta} p(\theta) $$
+$$ p(\theta | D) = p(\text{D} | \theta) p(\theta) $$
 
 It's poetic: maybe ... just maybe ... priors can be interpreted as constraints that we wish 
 to impose on models. It is knowledge that we have about how the model *should* work even if
@@ -42,6 +61,16 @@ It contains traffic arrests in Toronto and it is our job to predict if somebody 
 are arrested. It has attributes for skin color, gender, age, employment, citizenship, past interactions and date. 
 We consider date, employment and citizenship to be proxies that go into the model while we keep gender,
 skin color and age seperate as sensitive attributes that we want to remain fair on. 
+
+Here's a preview of the dataset.
+
+|    | released   | colour   |   year | age   | sex   | employed   | citizen   |   checks |
+|---:|:-----------|:---------|-------:|:------|:------|:-----------|:----------|---------:|
+|  0 | Yes        | False    |   2002 | True  | False | Yes        | Yes       |        3 |
+|  1 | No         | True     |   1999 | True  | False | Yes        | Yes       |        3 |
+|  2 | Yes        | False    |   2000 | True  | False | Yes        | Yes       |        3 |
+|  3 | No         | True     |   2000 | False | False | Yes        | Yes       |        1 |
+|  4 | Yes        | True     |   1999 | False | True  | Yes        | Yes       |        1 |
 
 The dataset is interesting because not only is there a fairness risk; there is also a balancing issue. 
 The balancing issue can be dealt with by adding a `class_weight` parameter while the fairness 
@@ -66,18 +95,198 @@ unfair_model.fit(X, y)
 fair_model.fit(X, y)
 ```
 
-The table below shows the cross-validated summary of the performance of both models.
+<aside>
+
+Logstic Regression:
+
+$$
+\begin{array}{cl}{\operatorname{minimize}} & -\sum_{i=1}^{N} \log p\left(y_{i} | \mathbf{x}_{i},
+        \boldsymbol{\theta}\right) \\\end{array}
+$$
+
+Equal Opportunity:
+
+$$
+\begin{array}{cl}{\operatorname{minimize}} & -\sum_{i=1}^{N} \log p\left(y_{i} | \mathbf{x}_{i},
+        \boldsymbol{\theta}\right) \\
+        {\text { subject to }} & {\frac{1}{POS} \sum_{i=1}^{POS}\left(\mathbf{z}_{i}-\overline{\mathbf{z}}\right) d
+        \boldsymbol{\theta}\left(\mathbf{x}_{i}\right) \leq \mathbf{c}} \\
+        {} & {\frac{1}{POS} \sum_{i=1}^{POS}\left(\mathbf{z}_{i}-\overline{\mathbf{z}}\right)
+        d_{\boldsymbol{\theta}}\left(\mathbf{x}_{i}\right) \geq-\mathbf{c}}\end{array}
+$$
+See [documentation](https://scikit-lego.readthedocs.io/en/latest/fairness.html#Equal-opportunity).
+
+</aside>
+
+The main difference between the two approaches is that in the Logistic Regression 
+scheme we drop the sensitive columns while the other approach actively corrects for 
+them. The table below shows the cross-validated summary of the mean test performance 
+of both models.
+
+| model | eqo(color)  | eqo(age) | eqo(sex)   | precision  | recall    |
+|:------|:------------|:---------|:-----------|:-----------|:----------|
+| LR    | 0.6986      | 0.7861   | 0.8309     | 0.9187     | 0.6345    |
+| EOC   | 0.9740      | 0.9929   | 0.9892     | 0.8353     | 0.9893    |
+
+<aside>
+**eqo** stands for equal opportunity, see [documentation](https://scikit-lego.readthedocs.io/en/latest/fairness.html#Measuring-fairness-for-Classification).
+</aside>
+
+You can also confirm the difference between the two models by looking at their 
+coefficients.
+
+| model | intercept    | $w_{\text{employed}}$| $w_{\text{citizen}}$ | $w_{\text{year}}$ | $w_{\text{checks}}$  |
+|:------|:-------------|:----------    |:--------------|:-----------|:--------------|
+| LR    | -1.0655      | +0.7913       | +0.7537       | -0.0101    | -0.5951       |
+| EOC   | +0.5833      | +0.7710       | +0.6826       | -0.0196    | -0.5798       |
 
 There are a few things to note at this stage; 
 
-- Accuracy and fairness don't go hand in hand. 
-- The fair model is arguable still useful despite having a lower accuracy. 
+- The more fair model seems to shift the intercept drastically but the other
+columns (which are normalised) less so. 
+- The more fair is arguably still useful despite having a lower precision. It
+compensates with fairness but also with recall. 
 - Having a fairness constraint based on distance to the decision boundary is one 
-description of fairness. But, there may very well be others. In general though 
-it is hard to guarantee a constraint unless the resulting optimisation problem is convex. 
-- The current modelling approach allows us to make predictions but these predictions 
-do not have uncertainty bounds. 
-- Linear models are fine, but sometimes we may want to apply constraints to 
-hierarchical models. 
+description of fairness. There are many other measures of fairness and we're only 
+a particular one because it offers us a convex algorithm that can give us guarantees
+on the training data.
+It would be nice to have the opportunity to define more flexible definitions of 
+fairness.
+- The current modelling approach allows us to make predictions but these 
+predictions do not have uncertainty bounds. 
+- Linear models are fine, but sometimes we may want to apply 
+constraints to hierarchical models. 
 
 ## Probibalistic Programming
+
+This brings us back to the formulae that we started with. 
+
+$$ \text{model} = \text{data} \times \text{constraints} $$
+
+In our case the constraints we want concern fairness.
+
+ $$ p(\theta | D) \propto \underbrace{p(D | \theta)}_{\text{data}} \underbrace{p(\theta)}_{\text{fairness?}} $$
+
+So can we come up with a prior for that? 
+
+To explore this idea we set out to reproduce our results from earlier in PyMC3. We started with an
+implementation of logistic regression but found that it did not match our earlier results. 
+
+<details>
+  <summary><b>PyMC3 Implementation.</b></summary>
+```python
+with pm.Model() as unbalanced_model:
+  intercept = pm.Normal('intercept', 0, 1)
+  weights = pm.Normal('weights', 0, 1, shape=X.shape[1])
+
+  p = pm.math.sigmoid(intercept + pm.math.dot(X, weights))
+  
+  dist_colour = intercept + pm.math.dot(X_colour, weights)
+  dist_non_colour = intercept + pm.math.dot(X_non_colour, weights)
+  mu_diff = pm.Deterministic('mu_diff', dist_colour.mean() - dist_non_colour.mean())
+
+  pm.Bernoulli('released', p, observed=df['released'])
+
+  unbalanced_trace = pm.sample(tune=1000, draws=1000, chains=6)
+```
+</details>
+
+
+```{r, out.width = '100%', fig.cap="Standard Logistic Regression in PyMC3."}
+imgs <- c("pymc-1.png")
+knitr::include_graphics(imgs)
+```
+
+This was because our original logistic regression had a `balanced` setting. Luckily for us
+PyMC3 has a feature to address this; `pm.Potential`. The idea behind a potential is that 
+you can define ...
+
+<details>
+  <summary><b>PyMC3 Implementation.</b></summary>
+```python
+with pm.Model() as balanced_model:
+    intercept = pm.Normal('intercept', 0, 1)
+    weights = pm.Normal('weights', 0, 1, shape=X.shape[1])
+
+    p = pm.math.sigmoid(intercept + pm.math.dot(X, weights))
+    
+    dist_colour = intercept + pm.math.dot(X_colour, weights)
+    dist_non_colour = intercept + pm.math.dot(X_non_colour, weights)
+    mu_diff = pm.Deterministic('mu_diff', dist_colour.mean() - dist_non_colour.mean())
+
+    pm.Potential('balance', sample_weights.values * pm.Bernoulli.dist(p).logp(df['released'].values))
+
+
+    balanced_trace = pm.sample(tune=1000, draws=1000, chains=6)
+```
+</details>
+
+These results were in line with our previous result again. 
+
+```{r, out.width = '100%', fig.cap="Balanced Logistic Regression in PyMC3."}
+imgs <- c("pymc-2.png")
+knitr::include_graphics(imgs)
+```
+
+But that `pm.Potential` can also be used for other things! Why not fairness? 
+
+<details>
+  <summary><b>PyMC3 Implementation.</b></summary>
+with pm.Model() as dem_par_model:
+    intercept = pm.Normal('intercept', 0, 1)
+    weights = pm.Normal('weights', 0, 1, shape=X.shape[1])
+
+    p = pm.math.sigmoid(intercept + pm.math.dot(X, weights))
+
+    dist_colour = intercept + pm.math.dot(X_colour, weights)
+    dist_non_colour = intercept + pm.math.dot(X_non_colour, weights)
+    mu_diff = pm.Deterministic('mu_diff', dist_colour.mean() - dist_non_colour.mean())
+
+    pm.Potential('dist', pm.Normal.dist(0, 0.01).logp(mu_diff))
+    pm.Potential('balance', sample_weights.values * pm.Bernoulli.dist(p).logp(df['released'].values))
+
+    dem_par_trace = pm.sample(tune=1000, draws=1000, chains=6)
+</details>
+
+```{r, out.width = '100%', fig.cap="Potential Fairness in PyMC3."}
+imgs <- c("pymc-3.png")
+knitr::include_graphics(imgs)
+```
+
+<details>
+  <summary><b>PyMC3 Implementation.</b></summary>
+```python
+def hard_constraint_model(df):
+    def predict(trace, df):
+        X = df[['year', 'employed', 'citizen', 'checks']].values
+        return expit((trace['intercept'][:, None] + trace['weights'] @ X.T).mean(axis=0))
+    
+    X = df[['year', 'employed', 'citizen', 'checks']].values
+    X_colour, X_non_colour = X[df['colour'] == 1], X[df['colour'] == 0] 
+
+    
+    class_weights = len(df) / df['released'].value_counts()
+    sample_weights = df['released'].map(class_weights)
+    with pm.Model() as dem_par_model:
+        intercept = pm.Normal('intercept', 0, 1)
+        weights = pm.Normal('weights', 0, 1, shape=X.shape[1])
+
+        p = pm.math.sigmoid(intercept + pm.math.dot(X, weights))
+
+        dist_colour = intercept + pm.math.dot(X_colour, weights)
+        dist_non_colour = intercept + pm.math.dot(X_non_colour, weights)
+        mu_diff = pm.Deterministic('mu_diff', dist_colour.mean() - dist_non_colour.mean())
+
+        pm.Potential('dist', pm.Normal.dist(0, 0.01).logp(mu_diff))
+        pm.Potential('balance', sample_weights.values * pm.Bernoulli.dist(p).logp(df['released'].values))
+
+        dem_par_trace = pm.sample(tune=1000, draws=1000, chains=6)
+    return trace_filter(dem_par_trace, 0.16), predict
+```
+</details>
+
+```{r, out.width = '100%', fig.cap="Enforce Fairness PyMC3."}
+imgs <- c("pymc-4.png")
+knitr::include_graphics(imgs)
+```
+
