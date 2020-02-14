@@ -179,7 +179,12 @@ So can we come up with a prior for that?
 
 To explore this idea we set out to reproduce our results from earlier in PyMC3. We started with an
 implementation of logistic regression but found that it did not match our earlier results.
-The results of the trace are listed below. 
+The results of the trace are listed below. We show the distribution of the weights as well as a 
+distribution over the unfairness which is defined like so; 
+
+```python
+mu_diff = pm.Deterministic('mu_diff', dist_colour.mean() - dist_non_colour.mean())
+```
 
 <details>
   <summary><b>PyMC3 Implementation.</b></summary>
