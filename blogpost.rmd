@@ -1,7 +1,7 @@
 ---
 title: "Priors of Great Potential"
 description: |
-  Constraints can be amazing.
+  Constraints are be amazing.
 author:
   - name: Matthijs Brouns
     url: mbrouns.com
@@ -178,7 +178,8 @@ In our case the constraints we want concern fairness.
 So can we come up with a prior for that? 
 
 To explore this idea we set out to reproduce our results from earlier in PyMC3. We started with an
-implementation of logistic regression but found that it did not match our earlier results. 
+implementation of logistic regression but found that it did not match our earlier results.
+The results of the trace are listed below. 
 
 <details>
   <summary><b>PyMC3 Implementation.</b></summary>
@@ -206,8 +207,42 @@ knitr::include_graphics(imgs)
 ```
 
 This was because our original logistic regression had a `balanced` setting. Luckily for us
-PyMC3 has a feature to address this; `pm.Potential`. The idea behind a potential is that 
-you can define ...
+PyMC3 has a feature to address this; `pm.Potential`. 
+
+## `pm.Potential` 
+
+The idea behind the potential is that you add a prior on a combination
+of parameters instead of just having it on a single one. For example, this
+is how you'd usually set parameters; 
+
+```python
+mu    = pm.Normal('mu', 0, 1)
+sigma = pm.HalfNormal('sigma', 0, 1)
+```
+
+By setting the `sigma` prior to be `HalfNormal` we prevent it from ever 
+becoming negative. But what if we'd like to set another prior, namely
+that $\mu \approx \sigma$? This is what `pm.Potential` can be used for. 
+
+```python
+pm.Potential('balance', pm.Normal.dist(0, 0.1).logp(mu - sigma))
+```
+
+Adding a potential has an effect on the likelihood of a tracepoint.
+
+```{r, out.width = '100%', fig.cap="Example of a tracepoint that is both less (left) and more likely (right) given the potential."}
+knitr::include_graphics("drawing1.png")
+```
+
+This in turn will make the posterior look different. 
+
+```{r, out.width = '100%', fig.cap="The effect that the potential might have."}
+knitr::include_graphics("drawing2.png")
+```
+
+## Back to Logistic Regression 
+
+So we made a second version of the logistic regression. 
 
 <details>
   <summary><b>PyMC3 Implementation.</b></summary>
@@ -231,12 +266,43 @@ with pm.Model() as balanced_model:
 
 These results were in line with our previous result again. 
 
-```{r, out.width = '100%', fig.cap="Balanced Logistic Regression in PyMC3."}
-imgs <- c("pymc-2.png")
-knitr::include_graphics(imgs)
+
+But that `pm.Potential` can also be used for other things! 
+
+```{r, out.width = '100%', fig.cap="From trace to posterior."}
+knitr::include_graphics("drawing3.png")
 ```
 
-But that `pm.Potential` can also be used for other things! Why not fairness? 
+Suppose we have our original trace that generates our posterior. 
+
+```{r, out.width = '100%', fig.cap="Two belief systems ... "}
+knitr::include_graphics("drawing4.png")
+```
+
+Now also suppose that we have a function that describes our potential. 
+
+```{r, out.width = '100%', fig.cap="Two belief systems ... merged!"}
+knitr::include_graphics("drawing5.png")
+```
+
+Then these two can be combined! Our prior can span beyond a single parameter
+it can influence the entire posterior. So we've come up with a potential for 
+fairness. 
+
+``` python
+X_colour, X_non_colour = split_groups(X, key="colour")
+...
+dist_colour = intercept + pm.math.dot(X_colour, weights)
+dist_non_colour = intercept + pm.math.dot(X_non_colour, weights)
+mu_diff = pm.Deterministic('mu_diff', dist_colour.mean() - dist_non_colour.mean())
+pm.Potential('dist', pm.Normal.dist(0, 0.01).logp(mu_diff))
+```
+
+Note that in this code the `0.01` value on the bottom line. This value can
+be interpreted as strictness for fairness. The lower it is, the less wiggle
+room the sampler has to explore areas that are not fair.
+
+The results can be seen below.
 
 <details>
   <summary><b>PyMC3 Implementation.</b></summary>
@@ -260,6 +326,31 @@ with pm.Model() as dem_par_model:
 imgs <- c("pymc-3.png")
 knitr::include_graphics(imgs)
 ```
+
+## Still a problem 
+
+There's still an issue. We've gotten a flexible approach here. Compare to the 
+scikit approach we can have more flexible definitions of fairness and we can 
+have more flexible models (hierarchical models, non-linear models) but at the moment
+our models does not **guarantee** fairness. 
+
+But then Matthijs came up with a neat little hack. 
+
+```{r, out.width = '100%', fig.cap="Posterior Belief and Potential Direction"}
+knitr::include_graphics("drawing6.png")
+```
+
+We use our potential to push samples in a direction. This push *must* be continous 
+if we want gradients to help ous out here. But after this push is done, we would 
+we would like to make a hard cutoff on our fairness. So why don't we just filter 
+out the sampled points that we don't like? 
+
+```{r, out.width = '100%', fig.cap="After the data is pushed we do a hard filter."}
+knitr::include_graphics("drawing7.png")
+```
+
+This way, we still get a distribution out but this distribution is guaranteed to never
+assign any probability mass in regions where we deem the predictions to be 'unfair'. 
 
 <details>
   <summary><b>PyMC3 Implementation.</b></summary>
@@ -293,8 +384,16 @@ def hard_constraint_model(df):
 ```
 </details>
 
-```{r, out.width = '100%', fig.cap="Enforce Fairness PyMC3."}
+Note that in the results, the fairness metric has a hard cutoff. 
+
+```{r, out.width = '100%', fig.cap="Enforce Fairness in PyMC3."}
 imgs <- c("pymc-4.png")
 knitr::include_graphics(imgs)
+```
+
+## Conclusion
+
+```{r, out.width = '100%', fig.cap="The general recipe."}
+knitr::include_graphics("drawing8.png")
 ```
 
