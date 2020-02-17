@@ -111,7 +111,7 @@ $$
         d_{\boldsymbol{\theta}}\left(\mathbf{x}_{i}\right) \geq-\mathbf{c}}\end{array}
 $$
 
-It the log loss while constraining the correlation between the specified `sensitive_cols` and the distance to the decision boundary of the classifier for those examples that have a `y_true` of 1.
+It minimizes the log loss while constraining the correlation between the specified `sensitive_cols` and the distance to the decision boundary of the classifier for those examples that have a `y_true` of 1.
 
 See [documentation](https://scikit-lego.readthedocs.io/en/latest/fairness.html#Equal-opportunity).
 </details>
@@ -155,8 +155,7 @@ columns (which are normalised) less so.
 - The more fair is arguably still useful despite having a lower precision. It
 compensates with fairness but also with recall. 
 - Having a fairness constraint based on distance to the decision boundary is one 
-description of fairness. There are many other measures of fairness and we're only 
-a particular one because it offers us a convex algorithm that can give us guarantees
+description of fairness. There are many other measures of fairness and we're only using this particular one because it offers us a convex algorithm that can give us guarantees
 on the training data.
 It would be nice to have the opportunity to define more flexible definitions of 
 fairness.
@@ -267,32 +266,35 @@ with pm.Model() as balanced_model:
 
     balanced_trace = pm.sample(tune=1000, draws=1000, chains=6)
 ```
+
+Note the new formulation of the likelihood of our observed data. Where before we used the `pm.Bernoulli` directly, now  we use its `.dist` attribute inside a `pm.Potential` object
+
 </details>
 
 These results were in line with our previous result again. 
 
 
 But that `pm.Potential` can also be used for other things! 
+Suppose we have our original trace that generates our posterior. 
 
 ```{r, out.width = '100%', fig.cap="From trace to posterior."}
 knitr::include_graphics("drawing3.png")
 ```
 
-Suppose we have our original trace that generates our posterior. 
+Now also suppose that we have a function that describes our potential. 
 
 ```{r, out.width = '100%', fig.cap="Two belief systems ... "}
 knitr::include_graphics("drawing4.png")
 ```
 
-Now also suppose that we have a function that describes our potential. 
+Then these two can be combined! Our prior can span beyond a single parameter
+it can influence the entire posterior.
 
 ```{r, out.width = '100%', fig.cap="Two belief systems ... merged!"}
 knitr::include_graphics("drawing5.png")
 ```
 
-Then these two can be combined! Our prior can span beyond a single parameter
-it can influence the entire posterior. So we've come up with a potential for 
-fairness. 
+So we've come up with a potential for fairness. 
 
 ``` python
 X_colour, X_non_colour = split_groups(X, key="colour")
@@ -311,6 +313,7 @@ The results can be seen below.
 
 <details>
   <summary><b>PyMC3 Implementation.</b></summary>
+```python
 with pm.Model() as dem_par_model:
     intercept = pm.Normal('intercept', 0, 1)
     weights = pm.Normal('weights', 0, 1, shape=X.shape[1])
@@ -325,6 +328,7 @@ with pm.Model() as dem_par_model:
     pm.Potential('balance', sample_weights.values * pm.Bernoulli.dist(p).logp(df['released'].values))
 
     dem_par_trace = pm.sample(tune=1000, draws=1000, chains=6)
+```
 </details>
 
 ```{r, out.width = '100%', fig.cap="Potential Fairness in PyMC3."}
@@ -338,6 +342,8 @@ There's still an issue. We've gotten a flexible approach here. Compare to the
 scikit approach we can have more flexible definitions of fairness and we can 
 have more flexible models (hierarchical models, non-linear models) but at the moment
 our models does not **guarantee** fairness. 
+
+Even though the prior on the difference between the groups is set to a very narrow distribution around zero, there is still some probability mass far away from zero. We tried putting a uniform prior on the distance between the two groups to get rid of that probability mass, but this makes it nearly impossible for a sampler to explore the posterior space.
 
 But then Matthijs came up with a neat little hack. 
 
@@ -360,6 +366,24 @@ assign any probability mass in regions where we deem the predictions to be 'unfa
 <details>
   <summary><b>PyMC3 Implementation.</b></summary>
 ```python
+def trace_filter(trace, param, threshold_val):
+    """
+    Filters a PyMC multitrace to remove all samples where param is greater than threshold  value
+    """
+    mask = np.abs(trace[param']) < threshold_val
+    print(f"starting trace length: {len(trace[param])}")
+    print(f'remainder: {mask.sum()}')
+    strace = trace._straces[0]
+    new_strace = pm.backends.NDArray(model=strace.model, vars=strace.vars)
+    
+    samples = {varname: trace[varname][mask] for varname in trace.varnames}
+    new_strace.samples = samples
+    new_strace.draws = mask.sum()
+    new_strace.draw_idx = mask.sum()
+    new_strace.chain = 0
+    return pm.backends.base.MultiTrace([new_strace])
+    
+    
 def hard_constraint_model(df):
     def predict(trace, df):
         X = df[['year', 'employed', 'citizen', 'checks']].values
