@@ -196,7 +196,8 @@ with pm.Model() as unbalanced_model:
   
   dist_colour = intercept + pm.math.dot(X_colour, weights)
   dist_non_colour = intercept + pm.math.dot(X_non_colour, weights)
-  mu_diff = pm.Deterministic('mu_diff', dist_colour.mean() - dist_non_colour.mean())
+  diff = dist_colour.mean() - dist_non_colour.mean()
+  mu_diff = pm.Deterministic('mu_diff', diff)
 
   pm.Bernoulli('released', p, observed=df['released'])
 
@@ -259,9 +260,10 @@ with pm.Model() as balanced_model:
     
     dist_colour = intercept + pm.math.dot(X_colour, weights)
     dist_non_colour = intercept + pm.math.dot(X_non_colour, weights)
-    mu_diff = pm.Deterministic('mu_diff', dist_colour.mean() - dist_non_colour.mean())
-
-    pm.Potential('balance', sample_weights.values * pm.Bernoulli.dist(p).logp(df['released'].values))
+    diff = dist_colour.mean() - dist_non_colour.mean()
+    mu_diff = pm.Deterministic('mu_diff', diff)
+    balance = pm.Bernoulli.dist(p).logp(df['released'].values)
+    pm.Potential('balance', sample_weights.values * balance)
 
 
     balanced_trace = pm.sample(tune=1000, draws=1000, chains=6)
@@ -322,10 +324,12 @@ with pm.Model() as dem_par_model:
 
     dist_colour = intercept + pm.math.dot(X_colour, weights)
     dist_non_colour = intercept + pm.math.dot(X_non_colour, weights)
-    mu_diff = pm.Deterministic('mu_diff', dist_colour.mean() - dist_non_colour.mean())
+    diff = dist_colour.mean() - dist_non_colour.mean()
+    mu_diff = pm.Deterministic('mu_diff', diff)
 
     pm.Potential('dist', pm.Normal.dist(0, 0.01).logp(mu_diff))
-    pm.Potential('balance', sample_weights.values * pm.Bernoulli.dist(p).logp(df['released'].values))
+    balance = pm.Bernoulli.dist(p).logp(df['released'].values
+    pm.Potential('balance', sample_weights.values * balance))
 
     dem_par_trace = pm.sample(tune=1000, draws=1000, chains=6)
 ```
@@ -368,7 +372,8 @@ assign any probability mass in regions where we deem the predictions to be 'unfa
 ```python
 def trace_filter(trace, param, threshold_val):
     """
-    Filters a PyMC multitrace to remove all samples where param is greater than threshold  value
+    Filters a PyMC multitrace to remove all samples 
+    where param is greater than threshold  value
     """
     mask = np.abs(trace[param']) < threshold_val
     print(f"starting trace length: {len(trace[param])}")
@@ -387,7 +392,8 @@ def trace_filter(trace, param, threshold_val):
 def hard_constraint_model(df):
     def predict(trace, df):
         X = df[['year', 'employed', 'citizen', 'checks']].values
-        return expit((trace['intercept'][:, None] + trace['weights'] @ X.T).mean(axis=0))
+        regr = trace['intercept'][:, None] + trace['weights'] @ X.T
+        return expit(regr.mean(axis=0))
     
     X = df[['year', 'employed', 'citizen', 'checks']].values
     X_colour, X_non_colour = X[df['colour'] == 1], X[df['colour'] == 0] 
@@ -403,10 +409,12 @@ def hard_constraint_model(df):
 
         dist_colour = intercept + pm.math.dot(X_colour, weights)
         dist_non_colour = intercept + pm.math.dot(X_non_colour, weights)
-        mu_diff = pm.Deterministic('mu_diff', dist_colour.mean() - dist_non_colour.mean())
+        diff = dist_colour.mean() - dist_non_colour.mean()
+        mu_diff = pm.Deterministic('mu_diff', diff)
 
         pm.Potential('dist', pm.Normal.dist(0, 0.01).logp(mu_diff))
-        pm.Potential('balance', sample_weights.values * pm.Bernoulli.dist(p).logp(df['released'].values))
+        balance = pm.Bernoulli.dist(p).logp(df['released'].values)
+        pm.Potential('balance', sample_weights.values * balance)
 
         dem_par_trace = pm.sample(tune=1000, draws=1000, chains=6)
     return trace_filter(dem_par_trace, 0.16), predict
@@ -420,9 +428,73 @@ imgs <- c("pymc-4.png")
 knitr::include_graphics(imgs)
 ```
 
-## Conclusion
+The approach that we propose here is relatively generic. You can make
+hierarchical models and you have more flexiblity in your definition of 
+fairness. You start with constraints which you need to translate into
+a potential after which you can apply a strict filter.
 
 ```{r, out.width = '100%', fig.cap="The general recipe."}
 knitr::include_graphics("drawing8.png")
 ```
 
+We've just come up with an approach where our potential represents fairness.
+Since we filter the trace afterwards we have an algorithm with properties we
+like. We don't want to suggest this approach is perfect though, so here's some
+valid points of critique;
+
+- This approach **does not guarantee fairness**. We've merely guaranteed fairness
+on a single definition and only on our training set. This approach has merit 
+to it but we should not presume that it will be enough. The dataset that we see
+in production might drift away from what we see in training and there may certainly
+be facets of fairness that may be hard to capture with a potential. 
+- This approach will fail in settings where the model has so many hyperparameters 
+that we can't create a potential with domain knowledge. Neural networks for image
+detection may still be out of scope for this trick. 
+- Sampler-based approaches don't get stuck in local optima as often as gradient 
+approaches but even NUTS can get stuck. We also can't say for sure when the trace
+has enough samples to be reliable. The training procedure is also very expensive.
+
+## Conclusion
+
+We're pretty exited about this way of thinking about models. The reason why is 
+best described with an analogy in fashion and is summerised in this photo;
+
+```{r, out.width = '100%', fig.cap="This is what `OneSizeForAll().fit()` looks like. It never fits perfectly."}
+imgs <- c("fashion.png")
+knitr::include_graphics(imgs)
+```
+
+We think [scikit-learn](scikit-learn.org) is an amazing tool. It sparked the 
+familiar `.fit()`/`.predict()` interface that the ecosystem has grown accostomed to
+and it introduced a wonderful concept via its `Pipeline`-API. But all this greatness
+comes at a cost; people seem to be getting lazy. 
+
+Every problem get's reduced to something that can be put into a `.fit()`/`.predict()` 
+pipeline. The clearest examples of this can be found on the kaggle platform. 
+Kaggle competitions are won by reducing a problem to a single metric, optimising it
+religiously and not worrying about the application. They're not won by understanding 
+the problem, modelling towards it or by wondering how the algorithm might have 
+side-effects that you don't want.
+
+It is exactly on this axis that this approach gives us hope. Instead of calling
+`model.fit()` you get to enact `tailer.model()` because you're forced to think
+in constraints. This means that we **actually** get to model again! We can add 
+common sense as a friggin' prior! How amazing is that!
+
+### Dream a Little
+
+To add a cherry on top; in our example we're using fairness as a driving argument 
+but the reason to be exited goes beyond that. 
+
+- Maybe you are predicting a timeseries but you want to prevent *at all times*
+that the prediction out of the model ever yields a negative value. 
+- Maybe you are building a recommender for netflix and you want to add a 
+prior that punishes popular content such that the viewers
+don't get stuck in a filter bubble and enjoy more diverse content. 
+- Maybe you are a researcher in healthcare and want to insure yourself 
+against Simpsons paradox. One way of guarding yourself against this is by 
+adding a prior that states that *in all cases* smoking is bad for your
+health. Even when an outlier suggests otherwise. 
+
+The act of thinking constraints immediately makes you seriously consider the problem 
+before modelling and that ... that's got a lot of potential. 
