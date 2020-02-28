@@ -1,13 +1,14 @@
 ---
 title: "Priors of Great Potential"
 description: |
-  Constraints are be amazing.
+  Common Sense reduced to Priors
 author:
   - name: Matthijs Brouns
     url: mbrouns.com
   - name: Vincent Warmerdam
     url: koaning.io
-date: 02-13-2020
+date: 02-22-2020
+preview: drawing7.png
 output:
   distill::distill_article:
     self_contained: false
@@ -46,7 +47,7 @@ to impose on models. It is knowledge that we have about how the model *should* w
 the data wants to push us in another direction. 
 
 So what we'd like to do in this blogpost is explore the idea of constraints a bit more. First
-by showcasing how our open source package deals with it but then showing how a probibalistic 
+by showcasing how our open source package deals with it but then showing how a probabilistic 
 approach might be able to use bayes rule to go an extra mile. 
 
 <aside>This document will contain the summaries, you can find the bigger project [here](https://github.com/MBrouns/this_prior_has_some_potential).</aside>
@@ -164,7 +165,7 @@ predictions do not have uncertainty bounds.
 - Linear models are fine, but sometimes we may want to apply 
 constraints to hierarchical models. 
 
-## Probibalistic Programming
+## Probabilistic Programming
 
 This brings us back to the formulae that we started with. 
 
